@@ -1,7 +1,17 @@
-iimport pandas as pd
+import pandas as pd
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from transformers import pipeline
 from torch.utils.data import Dataset
+
+def clean_dataframe(df, text_column="question"):
+  df = df.dropna(subset=[text_column, "answer"]) ##### Drop rows with missing question or answer
+  df = df.drop_duplicates(subset=[text_column, "answer"]) ### Drop duplicates based on question and answer
+  df = df.reset_index(drop=True)
+  return df
+
+df = pd.read_csv("/content/sample_data/medquad.csv")
+df_cleaned = clean_dataframe(df)
+print(df_cleaned.head(5))
