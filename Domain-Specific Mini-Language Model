@@ -1,17 +1,62 @@
-import pandas as pd
-import numpy as np
-import torch
-import matplotlib.pyplot as plt
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
-from transformers import pipeline
-from torch.utils.data import Dataset
+import pandas as pd       # For handling tabular data
+import numpy as np        # For numerical operations
+import torch              # For deep learning
+import matplotlib.pyplot as plt  # For plotting graphs
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments, pipeline
+from torch.utils.data import Dataset  # For creating custom datasets
+import warnings
+warnings.filterwarnings("ignore", category=SyntaxWarning)
+df = pd.read_csv("/content/sample_data/medquad.csv")#Loads a CSV file containing medical questions and answers.
+def clean_dataframe(df, text_column="question"):#Removes missing or duplicate rows to keep the data clean.
+    df = df.dropna(subset=[text_column, "answer"])
+    df = df.drop_duplicates(subset=[text_column, "answer"])
+    df = df.reset_index(drop=True)
+    return df
+df_cleaned = clean_dataframe(df)#Applies the cleaning function to your dataset.
 
-def clean_dataframe(df, text_column="question"):
-  df = df.dropna(subset=[text_column, "answer"]) ##### Drop rows with missing question or answer
-  df = df.drop_duplicates(subset=[text_column, "answer"]) ### Drop duplicates based on question and answer
-  df = df.reset_index(drop=True)
-  return df
+df_cleaned["label"] = 0
 
-df = pd.read_csv("/content/sample_data/medquad.csv")
-df_cleaned = clean_dataframe(df)
-print(df_cleaned.head(5))
+class MedQuADDataset(Dataset):
+    def __init__(self, dataframe, tokenizer, max_length=128):
+        self.tokenizer = tokenizer
+        self.texts = dataframe["question"].tolist()
+        self.labels = dataframe["label"].tolist()
+        self.max_length = max_length
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __getitem__(self, idx):
+        encoding = self.tokenizer(
+            self.texts[idx],
+            truncation=True,
+            padding="max_length",
+            max_length=self.max_length,
+            return_tensors="pt"
+        )
+        item = {key: val.squeeze(0) for key, val in encoding.items()}
+        item["labels"] = torch.tensor(self.labels[idx])
+        return item
+
+model_name = "distilbert-base-uncased"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2)
+
+dataset = MedQuADDataset(df_cleaned, tokenizer)
+training_args = TrainingArguments(
+    output_dir="./results",
+    per_device_train_batch_size=8,
+    num_train_epochs=3,
+    logging_dir="./logs",
+    logging_steps=10
+)
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=dataset
+)
+trainer.train()
+qa_pipeline = pipeline("text-classification", model=model, tokenizer=tokenizer)
+sample_question = "What are the symptoms of diabetes?"
+result = qa_pipeline(sample_question)
+print(result)
