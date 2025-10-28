@@ -41,7 +41,6 @@ class MedQuADDataset(Dataset):
 model_name = "distilbert-base-uncased"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForSequenceClassification.from_pretrained(model_name, num_labels=2)
-
 dataset = MedQuADDataset(df_cleaned, tokenizer)
 training_args = TrainingArguments(
     output_dir="./results",
@@ -55,6 +54,7 @@ trainer = Trainer(
     args=training_args,
     train_dataset=dataset
 )
+
 trainer.train()
 qa_pipeline = pipeline("text-classification", model=model, tokenizer=tokenizer)
 sample_question = "What are the symptoms of diabetes?"
